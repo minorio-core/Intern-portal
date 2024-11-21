@@ -3,6 +3,7 @@ import MainLayout from './components/Layout';
 import './App.css';
 
 function App() {
+
   // State to keep track of the selected category && if I clicked before the button (category completed)
   const [selectedCategory, setSelectedCategory] = useState('main');
   const [completedCategories, setCompletedCategories] = useState({
@@ -69,6 +70,7 @@ function App() {
           Main website
         </a>
         {renderContent()} {/* Render content based on selected category */}
+        
       </div>
     </MainLayout>
   )
