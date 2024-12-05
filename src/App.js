@@ -1,6 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import MainLayout from './components/Layout';
 import './App.css';
+import { auth } from "./components/Firebase";  
+import { getDatabase, ref, update, onValue } from "firebase/database"; 
+
 
 function App() {
 
@@ -15,6 +18,22 @@ function App() {
     'Cross-team': false
   });
 
+   // Load user data on login
+   useEffect(() => {
+    const db = getDatabase();
+    const userId = auth.currentUser?.uid;
+
+    if (userId) {
+        const userRef = ref(db, `users/${userId}/completedCategories`);
+        onValue(userRef, (snapshot) => {
+            const data = snapshot.val();
+            if (data) {
+                setCompletedCategories(data); // Update state with user data
+            }
+        });
+    }
+}, [auth.currentUser]);
+
   // Function to handle category selection
   const handleCategoryClick = (category) => {
     setSelectedCategory(category);
@@ -26,6 +45,24 @@ function App() {
       ...prevState,
       [selectedCategory]: true
     }));
+    
+    const db = getDatabase();
+        const userId = auth.currentUser?.uid; // user is logged?
+
+        if (userId) {
+            const userRef = ref(db, `users/${userId}/completedCategories`);
+            update(userRef, {
+                [selectedCategory]: true,
+            })
+            .then(() => {
+                console.log(`Category ${selectedCategory} marked as completed for user ${userId}`);
+            })
+            .catch((error) => {
+                console.error("Error updating database:", error);
+            });
+        } else {
+            console.error("User not logged in.");
+        }
   };
 
   // Function to render content based on the selected category
