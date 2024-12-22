@@ -17,22 +17,37 @@ function App() {
     'Packages and Dependencies': false,
     'Cross-team': false
   });
+  const [lastLogin, setLastLogin] = useState('');
+  const [progressPercentage, setProgressPercentage] = useState('');
+
 
    // Load user data on login
-   useEffect(() => {
-    const db = getDatabase();
-    const userId = auth.currentUser?.uid;
+  useEffect(() => {
+   const db = getDatabase();
+   const userId = auth.currentUser?.uid;
 
-    if (userId) {
-        const userRef = ref(db, `users/${userId}/completedCategories`);
-        onValue(userRef, (snapshot) => {
-            const data = snapshot.val();
-            if (data) {
-                setCompletedCategories(data); // Update state with user data
-            }
-        });
-    }
-}, [auth.currentUser]);
+   if (userId) {
+    // Fetch user data
+    const userRef = ref(db, `users/${userId}`);
+    onValue(userRef, (snapshot) => {
+      const data = snapshot.val();
+      if (data) {
+        setCompletedCategories(data.completedCategories || {});
+        setProgressPercentage(data.progressPercentage || 0);
+        setLastLogin(data.lastLogin || ''); // Set the last login time
+      }
+    });
+
+    // Update last login time without overwriting other data
+    update(userRef, {
+      lastLogin: new Date().toISOString(),
+    }).catch((error) => {
+      console.error("Error updating last login:", error);
+    });
+  }
+   }, [auth.currentUser]);
+   const formattedLastLogin = lastLogin ? new Date(lastLogin).toLocaleString() : 'Not available';
+
 
   // Function to handle category selection
   const handleCategoryClick = (category) => {
@@ -41,29 +56,45 @@ function App() {
 
   //Function to handle completed categories when button clicked
   const handleButtonClick = () => {
-    setCompletedCategories(prevState => ({
-      ...prevState,
-      [selectedCategory]: true
-    }));
-    
-    const db = getDatabase();
-        const userId = auth.currentUser?.uid; // user is logged?
+    setCompletedCategories((prevState) => {
+      const updatedCategories = {
+        ...prevState,
+        [selectedCategory]: true, // Mark the selected category as completed
+      };
+      const totalCategories = Object.keys(updatedCategories).length;
+      const completedCount = Object.values(updatedCategories).filter((isCompleted) => isCompleted).length;
+      const progressPercentage = Math.round((completedCount / totalCategories) * 100);
 
-        if (userId) {
-            const userRef = ref(db, `users/${userId}/completedCategories`);
-            update(userRef, {
-                [selectedCategory]: true,
-            })
+      const db = getDatabase();
+      const userId = auth.currentUser?.uid;
+      if (userId) {
+        const userRef = ref(db, `users/${userId}`);
+        update(userRef, {
+            completedCategories: updatedCategories,
+            progressPercentage: progressPercentage, // Save progress percentage
+        })
             .then(() => {
-                console.log(`Category ${selectedCategory} marked as completed for user ${userId}`);
+                console.log(`Progress updated to ${progressPercentage}% for user ${userId}`);
             })
             .catch((error) => {
                 console.error("Error updating database:", error);
             });
-        } else {
-            console.error("User not logged in.");
-        }
+      } else {
+        console.error("User not logged in.");
+      }
+
+    return updatedCategories; // Update local state with the new data
+    });
   };
+  const [progress, setProgress] = useState(0); // Track progress percentage
+
+  useEffect(() => {
+    // Calculate progress when `completedCategories` changes
+    const totalCategories = Object.keys(completedCategories).length;
+    const completedCount = Object.values(completedCategories).filter((val) => val).length;
+    const percentage = Math.round((completedCount / totalCategories) * 100);
+    setProgress(percentage);
+  }, [completedCategories]);
 
   // Function to render content based on the selected category
   const renderContent = () => {
@@ -82,6 +113,15 @@ function App() {
      {/* Fixed Sidebar */}
      <div style={styles.sidebar}>
        <h2> Sidebar </h2>
+        <div style={styles.lastLoginContainer}>
+            <p>Last Login: {formattedLastLogin}</p>
+        </div>
+        <div>
+         <h3>Progress: {progress}%</h3>
+         <div style={styles.progressBarContainer}>
+            <div style={{ ...styles.progressBar, width: `${progress}%` }}></div>
+         </div>
+        </div>
         <ul>
         {Object.keys(completedCategories).map((category) => (
             <li key={category} onClick={() => handleCategoryClick(category)}>
@@ -123,6 +163,23 @@ const styles = {
   checkmark: {
     marginLeft: '10px',         
   },
+  progressBarContainer: {
+    width: '100%',
+    backgroundColor: '#e0e0e0',
+    borderRadius: '10px',
+    overflow: 'hidden',
+    marginTop: '20px',
+  },
+  progressBar: {
+    height: '20px',
+    backgroundColor: '#4caf50',
+    transition: 'width 0.5s ease',
+  },
+  lastLoginContainer: {
+    margin: '10px 0',
+    fontSize: '14px',
+    color: '#555',
+},
 };
 
 export default App;
